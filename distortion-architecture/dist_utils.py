@@ -161,29 +161,7 @@ def process_images(input_dir, output_dir, alpha=5.0, sigma_blur=2.0, max_regions
 
         image_final = cv2.cvtColor(image_final, cv2.COLOR_RGB2BGR)
 
-        output_path = os.path.join(output_dir, f"modified_{filename}")
+        output_path = os.path.join(output_dir, filename)
         cv2.imwrite(output_path, image_final)
         print(f"Processed and saved: {output_path}")
-
-
-def sort_images_in_directory(input_directory):
-    files = os.listdir(input_directory)
-    image_files = [f for f in files if f.startswith('modified_') and f.endswith('.jpg')]
-    sorted_files = sorted(image_files, key=lambda f: int(f.split('_')[1].split('.')[0]))
-    temp_directory = os.path.join(input_directory, 'temp')
-    os.makedirs(temp_directory, exist_ok=True)
-    
-    try:
-        for file in sorted_files:
-            old_path = os.path.join(input_directory, file)
-            shutil.move(old_path, os.path.join(temp_directory, file))
         
-        for index, file in enumerate(sorted_files, start=513):
-            new_path = os.path.join(input_directory, f"modified_{index}.jpg")
-            shutil.move(os.path.join(temp_directory, file), new_path)
-        
-    finally: shutil.rmtree(temp_directory)
-
-
-process_images(image_settings["clean_train_path"], image_settings["distorted_train_path"])
-sort_images_in_directory(image_settings["distorted_train_path"])
