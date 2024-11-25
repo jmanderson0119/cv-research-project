@@ -1,17 +1,28 @@
 from torch.utils.data import Dataset
 
 class DistortionDataset(Dataset):
-    def __init__(self, images):
+    def __init__(self, clean_images, distorted_images):
         """
-        Initializes the dataset
+        inits the dataset
         
-        :param images: List of preprocessed image tensors.
+        :param clean_images: List of preprocessed clean image tensors
+        :param distorted_images: List of preprocessed distorted image tensors
         """
-        # stores the preprocessed image tensors
-        self.images = images
+        # stores the clean and distorted image tensors
+        self.clean_images = clean_images
+        self.distorted_images = distorted_images
     
-    # defines the number of images in the dataset
-    def __len__(self): return len(self.images)
+    def __len__(self):
+        """
+        returns the length of the dataset.
+        """
+        return len(self.clean_images)
     
-    # retrieves and returns an image as the input and target
-    def __getitem__(self, i): return self.images[i], self.images[i]
+    def __getitem__(self, i):
+        """
+        retrieves a clean and a distorted image pair
+        
+        :param index: The index to retrieve the clean and distorted images.
+        :return: tuple of (clean_image, distorted_image)
+        """        
+        return self.clean_images[i], self.distorted_images[i]

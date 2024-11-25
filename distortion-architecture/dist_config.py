@@ -1,6 +1,7 @@
 # example set
 image_settings = {
-    "train_path": "./raidar/train/",
+    "clean_train_path": "./traffic_dataset/train/clean/",
+    "distorted_train_path": "./traffic_dataset/train/distorted/",
     "test_path": "./raidar/test/",
     "target_dim": 256,
 }
@@ -12,7 +13,7 @@ train_settings = {
 }
 
 optimizer_settings = {
-    "lr": 1.0,
+    "lr": 1e-3,
     "max_iter": 20,
     "history_size": 10
 }
@@ -55,5 +56,5 @@ max_pool_settings = {
 
 # final model
 model = {
-    "destination": "distortion_detection_model.pth" 
+    "destination": "./distortion_detection_model.pth" 
 }

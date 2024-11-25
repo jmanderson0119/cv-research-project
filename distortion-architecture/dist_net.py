@@ -59,7 +59,7 @@ class DistortionNet(nn.Module):
         self.global_avg_pool = nn.AdaptiveAveragePool2d(1)
 
         # fully connected layer
-        self.fc1 = nn.Linear(self.conv3_out_channels, image_settings["target_dim"] ** 2)
+        self.fc1 = nn.Linear(self.conv3_out_channels, (image_settings["target_dim"] / dist_net_settings["distortion_grid_dim"]) ** 2)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -103,14 +103,14 @@ class DistortionNet(nn.Module):
         x = self.sigmoid(x)
 
         # validate final output shape before reshaping
-        expected_fc_shape = (x.size(0), image_settings["target_dim"] ** 2)
+        expected_fc_shape = (x.size(0), (image_settings["target_dim"] / dist_net_settings["distortion_grid_dim"]) ** 2)
         if x.shape != expected_fc_shape: raise ValueError(f"Shape mismatch after fully connected layer. Expected: {expected_fc_shape}, received: {x.shape}")
 
         # produce final scoring and reshape to anomaly map
-        x = x.view(-1, 1, image_settings["target_dim"], image_settings["target_dim"])
+        x = x.view(-1, 1, image_settings["target_dim"] / dist_net_settings["distortion_grid_dim"], image_settings["target_dim"] / dist_net_settings["distortion_grid_dim"])
 
         # validate final output shape
-        expected_final_shape = (x.size(0), 1, image_settings["target_dim"], image_settings["target_dim"])
+        expected_final_shape = (x.size(0), 1, image_settings["target_dim"] / dist_net_settings["distortion_grid_dim"], image_settings["target_dim"] / dist_net_settings["distortion_grid_dim"])
         if x.shape != expected_final_shape: raise ValueError(f"Shape mismatch after final output. Expected: {expected_final_shape}, received: {x.shape}")
 
         return x

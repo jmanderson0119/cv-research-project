@@ -1,43 +1,47 @@
 import torch
-import torch.optim as optim
 from torch.utils.data import DataLoader
 from dist_net import DistortionNet
-from dist_loss import AnomalyDetectionLoss
+from dist_loss import DistortionLoss
 from dist_detection_dataset import DistortionDataset
+from dist_utils import load_images_from_directory
 from dist_train import train
-from dist_utils import preprocess_images
-from dist_config import *
+from dist_config import image_settings, train_settings, optimizer_settings, dist_net_settings
 
-def dist_main():    
-    # preprocesses images, normalizing them to the target height and width and preserving their aspect ratios
-    preprocessed_images = preprocess_images(
-        input_directory=image_settings["train_path"],
-        target_dim=image_settings["target_dim"]
-    )
+def dist_main():
+    
+    # Load and preprocess clean and distorted images from the directories
+    clean_images = load_images_from_directory(image_settings["clean_train_path"], image_settings["target_dim"])
+    distorted_images = load_images_from_directory(image_settings["distorted_train_path"], image_settings["target_dim"])
 
     # sets the training device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    # init distortion net
+
+    # ensure both sets of images have the same length
+    assert len(clean_images) == len(distorted_images), "Mismatch in number of clean and distorted images."
+
+    # initialize the dataset with clean and distorted images
+    dataset = DistortionDataset(clean_images, distorted_images)
+
+    # initialize the data loader
+    train_loader = DataLoader(dataset, train_settings["batch_size"], shuffle=False)
+
+    # initialize the model
     model = DistortionNet().to(device)
-    
-    # init data loader
-    train_loader = DataLoader(DistortionDataset(preprocessed_images), train_settings["batch_size"], shuffle=True)
 
-    # init loss function
-    criterion = AnomalyDetectionLoss(dist_net_settings["distortion_grid_dim"])
+    # initialize the loss function
+    criterion = DistortionLoss(dist_net_settings["distortion_grid_dim"])
 
-    # init the lbfgs optimizer
-    optimizer = optim.LBFGS(model.parameters(), optimizer_settings["lr"], optimizer_settings["max_iter"], optimizer_settings["history_size"])
+    # initialize the LBFGS optimizer
+    optimizer = torch.optim.LBFGS(model.parameters(), lr=optimizer_settings["lr"], max_iter=optimizer_settings["max_iter"])
 
-    # set number of epochs for training loop
+    # number of epochs
     num_epochs = train_settings["num_epochs"]
 
-    # training arc
+    # train the model
     train(model, train_loader, criterion, optimizer, device, num_epochs)
 
-    # save model
+    # save the model
     torch.save(model.state_dict(), model["destination"])
-    print("model is saved to" + model["destination"])
+    print(f"Model is saved to {model['destination']}")
 
 if __name__ == "__main__": dist_main()
