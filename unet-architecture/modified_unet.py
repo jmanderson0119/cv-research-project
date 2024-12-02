@@ -94,3 +94,4 @@ class UNet(nn.Module):
         restored_image = mask * restored_image + (1 - mask) * original_image
 
         return restored_image 
+
