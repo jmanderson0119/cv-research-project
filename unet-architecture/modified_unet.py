@@ -44,8 +44,14 @@ class UNet(nn.Module):
         )
 
     def forward(self, x, mask):
-        # mask and input image must be the same shape
+        # Ensure mask and input image are the same shape
         assert x.shape[2:] == mask.shape[2:], "Input and mask must have the same spatial dimensions."
+
+        # Expand mask
+        mask = mask.unsqueeze(1)  # make the mask 1 channel 
+    
+        # Concatenate the image and mask
+        x = torch.cat((x, mask), dim=1)  # now x has 4 channels 
 
         # Encoder
         enc1 = self.encoder[0](x)
@@ -66,9 +72,10 @@ class UNet(nn.Module):
         out = self.final_conv(dec4)
 
         # Combine the original image and the mask
-        restored_image = self.restore_image(x, out, mask)
+        restored_image = self.restore_image(x[:, :3, :, :], out, mask)  # Use only the original image for restoration
 
-        return restored_image 
+        return restored_image
+
 
     def restore_image(self, original_image, restored_image, mask):
         """
@@ -76,7 +83,7 @@ class UNet(nn.Module):
         Uses the mask to replace distorted regions in the original image with the restored ones.
         
         :param original_image: The original image.
-        :param restored_image: The output from the U-Net model (restored areas).
+        :param restored_image: The output from the U-Net model (restored area). 
         :param mask: The distortion mask (binary mask, 1 for distortion, 0 for no distortion).
         :return: The final restored image.
         """
