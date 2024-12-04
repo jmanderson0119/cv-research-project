@@ -1,37 +1,43 @@
 import numpy as np
-from tensorflow import load_model
 from unet_data_loader import load_data
 from unet_data_generator import DataGenerator
-from modified_unet import build_modified_unet
+from modified_unet import UNet
 from unet_train import train_unet, evaluate_model
 
+def load_distortion_model(model_path):
+    """
+    Loads the distortion model, which is assumed to be a saved numpy array
+    """
+    # assume the distortion model is a function (e.g., a loaded mask generation function)
+    return np.load(model_path)  # This is a placeholder for your actual model loading process
+
 def main():
-    radar_image_dir = 'radar_images'
+    image_dir = 'IranianTrafficSignDetection/train'
     distortion_mask_dir = 'distortion_masks'
 
-    # Load data
-    train_images, train_masks = load_data(radar_image_dir, distortion_mask_dir)
-    val_images, val_masks = load_data('val_radar_images', 'val_distortion_masks')  # Validation data
+    # Load training and validation data
+    train_images, train_masks = load_data(image_dir, distortion_mask_dir)
+    val_images, val_masks = load_data('IranianTrafficSignDetection/val', 'val_distortion_masks')  # Validation data
 
-    # Load distortion model
-    distortion_model = load_model('path/to/distortion_model.h5')
+    # Load the distortion model (this would generate masks)
+    distortion_model = load_distortion_model('path/to/distortion_model.npy') 
 
     # Define batch size and epochs
     batch_size = 8
     epochs = 10
 
-    # Create U-Net model
-    unet_model = build_modified_unet(input_shape=(256, 256, 4))
+    # Create U-Net model with modified architecture
+    unet_model = UNet(in_channels=4, out_channels=3)  # Assuming 3 channels for input image and 1 for mask
     unet_model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
 
     # Create data generators
     train_generator = DataGenerator(train_images, train_masks, batch_size, distortion_model)
     val_generator = DataGenerator(val_images, val_masks, batch_size, distortion_model)
 
-    # Train model
+    # Train the U-Net model
     train_unet(unet_model, train_generator, num_epochs=epochs)
 
-    # Evaluate model on validation set
+    # Evaluate the model on the validation set
     evaluate_model(unet_model, val_generator)
 
     # Save the trained model

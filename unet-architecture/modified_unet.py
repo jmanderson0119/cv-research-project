@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-#from dist_config import dist_net_settings  
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=3, features=64):
+    def __init__(self, in_channels=4, out_channels=3, features=64):
         super(UNet, self).__init__()
         
         # initial convolutional blocks (encoder)
@@ -30,16 +29,20 @@ class UNet(nn.Module):
     def conv_block(self, in_channels, out_channels):
         return nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),  # Added batch normalization
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),  # Added batch normalization
             nn.ReLU(inplace=True)
         )
-    
+
     def upconv_block(self, in_channels, out_channels):
         return nn.Sequential(
             nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2),
+            nn.BatchNorm2d(out_channels),  # Added batch normalization
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),  # Added batch normalization
             nn.ReLU(inplace=True)
         )
 
@@ -47,10 +50,10 @@ class UNet(nn.Module):
         # Ensure mask and input image are the same shape
         assert x.shape[2:] == mask.shape[2:], "Input and mask must have the same spatial dimensions."
 
-        # Expand mask
+        # Expand mask to be a single channel
         mask = mask.unsqueeze(1)  # make the mask 1 channel 
     
-        # Concatenate the image and mask
+        # Concatenate the image and mask to form 4 channels
         x = torch.cat((x, mask), dim=1)  # now x has 4 channels 
 
         # Encoder
@@ -76,7 +79,6 @@ class UNet(nn.Module):
 
         return restored_image
 
-
     def restore_image(self, original_image, restored_image, mask):
         """
         Restores the image based on the distortion mask.
@@ -87,11 +89,10 @@ class UNet(nn.Module):
         :param mask: The distortion mask (binary mask, 1 for distortion, 0 for no distortion).
         :return: The final restored image.
         """
-        # the mask is a binary mask, where 1 means the area is distorted
-        mask = mask.expand_as(original_image)  
+        # The mask is a binary mask, where 1 means the area is distorted
+        mask = mask.expand_as(original_image)  # Expand the mask to match the input image dimensions
 
-        # replace the distorted regions with the output from the unet model
+        # Replace the distorted regions with the output from the U-Net model
         restored_image = mask * restored_image + (1 - mask) * original_image
 
-        return restored_image 
-
+        return restored_image
