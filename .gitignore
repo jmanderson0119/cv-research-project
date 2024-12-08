@@ -1,2 +1,8 @@
 traffic_dataset/
 __pycache__/
+env/
+legacy-models/
+training_distortion_maps/
+test_distortion_maps/
+test_distortion_masks/
+requirements.txt
