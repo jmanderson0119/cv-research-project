@@ -15,15 +15,14 @@ from dist_config import *
 
 def load_images_from_directory(directory, target_dim):
     """
-    Load and preprocess images from a directory.
+    load and preprocess images from a directory.
     
     :param directory: Path to the image directory.
-    :param target_dim: Target dimensions for the images (square).
+    :param target_dim: Target dimension for the images.
     :return: List of preprocessed images as tensors.
     """
 
-    # I only saw jpgs in the new dataset but I included the other two common formats just in case
-    image_paths = [os.path.join(directory, filename) for filename in os.listdir(directory) if filename.endswith(('jpg', 'png', 'jpeg'))]
+    image_paths = [os.path.join(directory, filename) for filename in os.listdir(directory) if filename.endswith(('jpg'))]
     
     preprocess_transform = transforms.ToTensor()
 
@@ -65,7 +64,7 @@ def resize_with_padding(image, target_dim):
 
 def compute_distortion_map(clean_image_batch, distorted_image_batch, distortion_grid_dim):
     """
-    Compute distortion maps for each image pair in the batch.
+    compute distortion maps for each image pair in the batch.
     
     :param clean_image_batch: Batch tensor of clean images
     :param distorted_image_batch: Batch tensor of distorted images
@@ -89,7 +88,7 @@ def compute_distortion_map(clean_image_batch, distorted_image_batch, distortion_
 
 def _compute_single_distortion_map(clean_image, distorted_image, distortion_grid_dim):
     """
-    Compute distortion map for a single image pair.
+    compute distortion map for a single image pair.
     
     :param clean_image: clean image tensor
     :param distorted_image: Corresponding distorted image tensor
@@ -421,27 +420,27 @@ def load_ground_truth_distortion_maps(maps_directory):
     :param maps_directory: Path to the directory containing ground truth distortion maps
     :return: Tensor of ground truth distortion maps
     """
-    # Check if directory exists
+    # check that directory exists
     if not os.path.exists(maps_directory):
         raise ValueError(f"Directory {maps_directory} does not exist.")
     
-    # List and sort .npy files
+    # list and sort .npy files
     map_files = sorted([f for f in os.listdir(maps_directory) if f.endswith('.npy')])
     
-    # Check if any .npy files exist
+    # check if any .npy files exist
     if not map_files:
         raise ValueError(f"No .npy files found in {maps_directory}")
     
-    # Load distortion maps
+    # load distortion maps
     ground_truth_distortion_maps = []
     for map_file in map_files:
         file_path = os.path.join(maps_directory, map_file)
         
-        # Load numpy array and convert to tensor, add singleton dimension
+        # load numpy array and convert to tensor, add singleton dimension
         distortion_map = torch.from_numpy(np.load(file_path)).unsqueeze(0)
         ground_truth_distortion_maps.append(distortion_map)
     
-    # Convert to a single tensor
+    # convert to a single tensor
     ground_truth_distortion_maps = torch.cat(ground_truth_distortion_maps, dim=0)
     
     print(f"Loaded {ground_truth_distortion_maps.shape[0]} pre-computed ground truth distortion maps")
