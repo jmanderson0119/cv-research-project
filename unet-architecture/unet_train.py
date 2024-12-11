@@ -1,117 +1,85 @@
-import tensorflow as tf
-import numpy as np
+import torch
 import matplotlib.pyplot as plt
+from modified_unet import UNet
+from unet_loss import UNetLoss
+from unet_data_generator import UNetDataset
+from unet_load_data import load_data
+import numpy as np
 
-def calculate_ssim(y_true, y_pred):
-    """
-    Computes the Structural Similarity Index (SSIM).
-    """
-    ssim = tf.image.ssim(y_true, y_pred, max_val=1.0)
-    return tf.reduce_mean(ssim)
+def train_unet(model, distorted_image_dir, mask_dir, target_dim, batch_size, num_epochs, learning_rate, device):
+    print("Starting training...")
 
-def calculate_psnr(y_true, y_pred):
-    """
-    Computes the Peak Signal-to-Noise Ratio (PSNR).
-    """
-    psnr = tf.image.psnr(y_true, y_pred, max_val=1.0)
-    return tf.reduce_mean(psnr)
-
-def train_unet(model, train_generator, val_generator, num_epochs=10, patience=5):
-    """
-    Trains the U-Net model with SSIM and PSNR evaluation and early stopping.
-    """
-    optimizer = tf.Adam()
-    loss_fn = tf.MeanSquaredError()
-
-    # Metrics
-    ssim_metric = tf.Mean(name='ssim')
-    psnr_metric = tf.Mean(name='psnr')
-
-    # Callbacks
-    early_stopping = tf.EarlyStopping(monitor='val_loss', patience=patience, restore_best_weights=True)
-    reduce_lr = tf.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-6)
-    checkpoint = tf.ModelCheckpoint('best_model.h5', monitor='val_loss', save_best_only=True, save_weights_only=True)
-
-    callbacks = [early_stopping, reduce_lr, checkpoint]
-
-    # Training the model
-    history = model.fit(
-        train_generator,
-        validation_data=val_generator,
-        epochs=num_epochs,
-        callbacks=callbacks
-    )
-
-    print("Training completed.")
-    return model
-
-def evaluate_model(model, validation_generator):
-    """
-    Evaluates the U-Net model on validation data using SSIM and PSNR.
-    """
-    total_ssim = 0.0
-    total_psnr = 0.0
-    num_batches = 0
-
-    for batch_input, batch_labels in validation_generator:
-        predictions = model(batch_input, training=False)  # Inference mode
-        total_ssim += calculate_ssim(batch_labels, predictions).numpy()
-        total_psnr += calculate_psnr(batch_labels, predictions).numpy()
-        num_batches += 1
-
-    avg_ssim = total_ssim / num_batches
-    avg_psnr = total_psnr / num_batches
-
-    print(f"Validation Results - SSIM: {avg_ssim:.4f}, PSNR: {avg_psnr:.4f}")
-    return avg_ssim, avg_psnr
-
-def visualize_results(inputs, predictions, labels, num_samples=5):
-    """
-    Visualizes input, prediction, and ground truth side-by-side.
-    """
-    plt.figure(figsize=(15, 5))
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    for i in range(num_samples):
-        # Input image
-        plt.subplot(3, num_samples, i + 1)
-        plt.imshow(inputs[i])
-        plt.title("Input Image")
-        plt.axis("off")
+    # Initialize the model, loss function, and optimizer
+    model = UNet(in_channels=4, out_channels=3).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    criterion = UNetLoss(max_val=1.0).to(device)
 
-        # Prediction
-        plt.subplot(3, num_samples, num_samples + i + 1)
-        plt.imshow(predictions[i])
-        plt.title("Predicted Output")
-        plt.axis("off")
+    # Load data using your DataLoader
+    dataloader = load_data(distorted_image_dir, mask_dir, target_dim, batch_size)
+    
+    # Training loop
+    for epoch in range(num_epochs):
+        model.train()
+        running_loss = 0.0
 
-        # Ground Truth
-        plt.subplot(3, num_samples, 2 * num_samples + i + 1)
-        plt.imshow(labels[i])
-        plt.title("Ground Truth")
-        plt.axis("off")
+        # Loop over the batches of data
+        for i, (inputs, targets) in enumerate(dataloader):
 
-    plt.tight_layout()
+            # Ensure that inputs and targets are PyTorch tensors with correct dtype
+            inputs = torch.tensor(inputs, dtype=torch.float32, requires_grad=True).to(device)
+            targets = torch.tensor(targets, dtype=torch.float32, requires_grad=False).to(device)
+
+            # Forward pass
+            outputs = model(inputs[:, :3, :, :], inputs[:, 3:, :, :])
+
+            # Compute the loss
+            loss = criterion(outputs, targets)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            # Track running loss
+            running_loss += loss.item()
+
+            # Visualize every few iterations
+            if i % 100 == 99:
+                print(f"Epoch [{epoch+1}/{num_epochs}], Iter [{i+1}/{len(dataloader)}], Loss: {running_loss / 100:.4f}")
+                visualize_results(inputs, targets, outputs, criterion)
+
+                # Reset running loss
+                running_loss = 0.0
+
+    print("Training complete")
+
+def visualize_results(inputs, targets, outputs, criterion):
+    # Convert tensors to numpy arrays for visualization
+    inputs = inputs.cpu().detach().numpy()
+    targets = targets.cpu().detach().numpy()
+    outputs = outputs.cpu().detach().numpy()
+
+    # Plot input, prediction, and ground truth side by side
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    axes[0].imshow(np.transpose(inputs[0, :3, :, :], (1, 2, 0)))  # Input image (first 3 channels)
+    axes[0].set_title('Input Image')
+    axes[1].imshow(np.transpose(outputs[0], (1, 2, 0)))  # Prediction
+    axes[1].set_title('Prediction')
+    axes[2].imshow(np.transpose(targets[0], (1, 2, 0)))  # Ground Truth
+    axes[2].set_title('Ground Truth')
     plt.show()
 
-def visualize_ssim_psnr(ssim_scores, psnr_scores):
-    """
-    Visualize the distribution of SSIM and PSNR across the dataset.
-    """
-    plt.figure(figsize=(15, 6))
+    # Compute SSIM and MSE
+    ssim_val = np.mean([criterion.ssim(torch.tensor(output).unsqueeze(0), torch.tensor(target)).cpu().numpy() for output, target in zip(outputs, targets)])
+    mse_val = np.mean([criterion.mse_loss(torch.tensor(output).unsqueeze(0), torch.tensor(target)).cpu().numpy() for output, target in zip(outputs, targets)])
+    
+    print(f"SSIM: {ssim_val:.4f}, MSE: {mse_val:.4f}")
 
-    # Plot SSIM
-    plt.subplot(1, 2, 1)
-    plt.hist(ssim_scores, bins=20, color='b', alpha=0.7)
-    plt.title('SSIM Distribution')
-    plt.xlabel('SSIM')
-    plt.ylabel('Frequency')
-
-    # Plot PSNR
-    plt.subplot(1, 2, 2)
-    plt.hist(psnr_scores, bins=20, color='g', alpha=0.7)
-    plt.title('PSNR Distribution')
-    plt.xlabel('PSNR')
-    plt.ylabel('Frequency')
-
-    plt.tight_layout()
+    # Optionally visualize the distribution of SSIM and MSE
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    axes[0].hist(ssim_val, bins=20)
+    axes[0].set_title('SSIM Distribution')
+    axes[1].hist(mse_val, bins=20)
+    axes[1].set_title('MSE Distribution')
     plt.show()
+    
